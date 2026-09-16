@@ -150,6 +150,15 @@
           </div>
         </div>
       </div>
+
+      <div style="margin-top: 6px;">
+        <label style="margin-bottom: 4px;">顯示比例 (Aspect Ratio):</label>
+        <select id="aspectSelect" style="width: 100%;">
+          <option value="original">原始真實比例 (Preserve Original Ratio - 推薦)</option>
+          <option value="square">正方形 1:1 (Square)</option>
+          <option value="fill">填滿整個視窗 (Stretch to Fill)</option>
+        </select>
+      </div>
     </div>
 
     <!-- Export -->
@@ -179,37 +188,42 @@
         </div>
 
         <div style="flex: 1; display: flex; overflow: hidden; position: relative;">
-          <div class="canvas-container" id="canvasContainer" style="padding: 15px 15px 35px 55px; position: relative;">
-            <!-- Y-Axis Label -->
-            <div style="position: absolute; left: 6px; top: 50%; transform: translateY(-50%) rotate(-90deg); font-size: 0.8rem; font-weight: 600; color: var(--accent); letter-spacing: 0.05em; pointer-events: none;">
-              角度 Angle (deg)
-            </div>
-            <!-- Y-Axis Ticks -->
-            <div id="yAxisTicks" style="position: absolute; left: 24px; top: 15px; bottom: 35px; width: 30px; display: flex; flex-direction: column; justify-content: space-between; align-items: flex-end; font-size: 0.72rem; color: var(--text-dim); pointer-events: none;">
-              <span id="tickYMax">+53.13°</span>
-              <span id="tickYMid">0.00°</span>
-              <span id="tickYMin">-53.13°</span>
-            </div>
-
-            <!-- Heatmap Canvas Area -->
-            <div style="width: 100%; height: 100%; position: relative; display: flex; align-items: center; justify-content: center; background: #000; border: 1px solid #334155; border-radius: 4px; overflow: hidden;">
-              <canvas id="heatmapCanvas" style="width: 100%; height: 100%; object-fit: fill;"></canvas>
-              <div id="dropPrompt" style="position: absolute; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: var(--text-dim); pointer-events: none;">
-                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                <div style="font-size: 0.95rem; font-weight: 500;">請點擊左側「📂 選擇檔案」或直接將 .txt 拖曳至此處</div>
+          <div class="canvas-container" id="canvasContainer" style="padding: 10px; display: flex; align-items: center; justify-content: center; position: relative; width: 100%; height: 100%;">
+            
+            <!-- Dynamic Aspect-Ratio Wrapper -->
+            <div id="heatmapWrapper" style="position: relative; display: inline-flex; align-items: center; justify-content: center;">
+              
+              <!-- Y-Axis Label & Ticks (left of heatmap) -->
+              <div style="position: absolute; right: calc(100% + 28px); top: 50%; transform: translateY(-50%) rotate(-90deg); font-size: 0.8rem; font-weight: 600; color: var(--accent); white-space: nowrap; pointer-events: none;">
+                角度 Angle (deg)
               </div>
-              <div id="tooltip" class="tooltip"></div>
+              <div id="yAxisTicks" style="position: absolute; right: calc(100% + 4px); top: 0; bottom: 0; width: 35px; display: flex; flex-direction: column; justify-content: space-between; align-items: flex-end; font-size: 0.72rem; color: var(--text-dim); pointer-events: none;">
+                <span id="tickYMax">+53.13°</span>
+                <span id="tickYMid">0.00°</span>
+                <span id="tickYMin">-53.13°</span>
+              </div>
+
+              <!-- Canvas element -->
+              <div id="canvasBox" style="position: relative; border: 1px solid #475569; border-radius: 4px; overflow: hidden; background: #000; box-shadow: 0 4px 12px rgba(0,0,0,0.5);">
+                <canvas id="heatmapCanvas" style="display: block;"></canvas>
+                <div id="dropPrompt" style="position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: var(--text-dim); pointer-events: none;">
+                  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                  <div style="font-size: 0.95rem; font-weight: 500;">請點擊左側「📂 選擇檔案」或直接將 .txt 拖曳至此處</div>
+                </div>
+                <div id="tooltip" class="tooltip"></div>
+              </div>
+
+              <!-- X-Axis Label & Ticks (below heatmap) -->
+              <div id="xAxisTicks" style="position: absolute; top: calc(100% + 4px); left: 0; right: 0; display: flex; justify-content: space-between; font-size: 0.72rem; color: var(--text-dim); pointer-events: none;">
+                <span id="tickXMin">--- nm</span>
+                <span id="tickXMid">--- nm</span>
+                <span id="tickXMax">--- nm</span>
+              </div>
+              <div style="position: absolute; top: calc(100% + 20px); left: 0; right: 0; text-align: center; font-size: 0.8rem; font-weight: 600; color: var(--accent); pointer-events: none;">
+                波長 Wavelength (nm)
+              </div>
             </div>
 
-            <!-- X-Axis Label & Ticks -->
-            <div id="xAxisTicks" style="position: absolute; left: 55px; right: 15px; bottom: 18px; display: flex; justify-content: space-between; font-size: 0.72rem; color: var(--text-dim); pointer-events: none;">
-              <span id="tickXMin">--- nm</span>
-              <span id="tickXMid">--- nm</span>
-              <span id="tickXMax">--- nm</span>
-            </div>
-            <div style="position: absolute; left: 55px; right: 15px; bottom: 4px; text-align: center; font-size: 0.8rem; font-weight: 600; color: var(--accent); pointer-events: none;">
-              波長 Wavelength (nm)
-            </div>
           </div>
 
           <div class="colorbar-container">
@@ -603,6 +617,43 @@
       }
       ctx.putImageData(imgData, 0, 0);
       renderColorbar(cmap);
+      updateCanvasLayout();
+    }
+
+    function updateCanvasLayout() {
+      if (!currentData || currentData.type !== '2d') return;
+      const container = document.getElementById('canvasContainer');
+      const canvas = document.getElementById('heatmapCanvas');
+      const mode = document.getElementById('aspectSelect').value;
+
+      // Available container space (minus margins for axes)
+      const availW = container.clientWidth - 110;
+      const availH = container.clientHeight - 80;
+      if (availW <= 0 || availH <= 0) return;
+
+      const nCols = currentData.wavelengths.length; // e.g. 512
+      const nRows = currentData.matrix.length;      // e.g. 128
+
+      if (mode === 'original') {
+        // Maintain original aspect ratio (nCols : nRows, e.g. 4:1)
+        const dataRatio = nCols / nRows;
+        let w = availW;
+        let h = w / dataRatio;
+        if (h > availH) {
+          h = availH;
+          w = h * dataRatio;
+        }
+        canvas.style.width = `${Math.round(w)}px`;
+        canvas.style.height = `${Math.round(h)}px`;
+      } else if (mode === 'square') {
+        const side = Math.min(availW, availH);
+        canvas.style.width = `${Math.round(side)}px`;
+        canvas.style.height = `${Math.round(side)}px`;
+      } else {
+        // Fill container
+        canvas.style.width = `${Math.round(availW)}px`;
+        canvas.style.height = `${Math.round(availH)}px`;
+      }
     }
 
     function renderColorbar(cmap) {
@@ -836,11 +887,17 @@
     });
     document.getElementById('logScale').addEventListener('change', scheduleRender);
     document.getElementById('cmapSelect').addEventListener('change', scheduleRender);
+    document.getElementById('aspectSelect').addEventListener('change', () => {
+      updateCanvasLayout();
+    });
     document.getElementById('fileSelect').addEventListener('change', (e) => {
       loadFile(e.target.value);
     });
 
-    window.addEventListener('resize', updateCuts);
+    window.addEventListener('resize', () => {
+      updateCanvasLayout();
+      updateCuts();
+    });
     loadFileList();
   </script>
 </body>
