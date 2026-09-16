@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <title>ARPL 色階分析與可視化工作站</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card-bg: #1e293b;
+      --border: #334155;
+      --accent: #38bdf8;
+      --accent-hover: #0ea5e9;
+      --text: #f1f5f9;
+      --text-dim: #94a3b8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    body { background: var(--bg); color: var(--text); display: flex; height: 100vh; overflow: hidden; }
+    
+    /* Sidebar */
+    .sidebar { width: 340px; background: var(--card-bg); border-right: 1px solid var(--border); display: flex; flex-direction: column; padding: 18px; gap: 16px; overflow-y: auto; }
+    .header-title { font-size: 1.15rem; font-weight: 700; color: var(--accent); display: flex; align-items: center; gap: 8px; }
+    
+    .panel { background: #0f172a88; border: 1px solid var(--border); border-radius: 8px; padding: 14px; display: flex; flex-direction: column; gap: 12px; }
+    .panel-title { font-size: 0.85rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-dim); }
+
+    label { font-size: 0.82rem; color: var(--text-dim); display: flex; justify-content: space-between; align-items: center; }
+    .val-display { color: var(--accent); font-weight: 600; }
+    input[type="range"] { width: 100%; accent-color: var(--accent); margin-top: 4px; cursor: pointer; }
+    select, button {
+      background: #1e293b; color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px; font-size: 0.88rem; outline: none; cursor: pointer; transition: all 0.2s;
+    }
+    select:hover, button:hover { border-color: var(--accent); }
+    button.primary { background: var(--accent); color: #0f172a; font-weight: 600; border: none; }
+    button.primary:hover { background: var(--accent-hover); }
+
+    .btn-group { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+    /* Main Area */
+    .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+    .topbar { height: 50px; border-bottom: 1px solid var(--border); background: var(--card-bg); display: flex; align-items: center; justify-content: space-between; padding: 0 20px; }
+    .info-badge { font-size: 0.85rem; color: var(--text-dim); display: flex; gap: 16px; }
+    .info-badge span { color: var(--text); font-weight: 500; }
+
+    .content-viewport { flex: 1; display: flex; padding: 16px; gap: 16px; overflow: hidden; }
+    .heatmap-card { flex: 3; background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; display: flex; flex-direction: column; position: relative; overflow: hidden; }
+    .canvas-container { flex: 1; position: relative; display: flex; align-items: center; justify-content: center; overflow: hidden; background: #000; }
+    canvas#heatmapCanvas { max-width: 100%; max-height: 100%; image-rendering: pixelated; }
+    
+    .colorbar-container { width: 44px; height: 100%; display: flex; flex-direction: column; align-items: center; padding: 10px 4px; border-left: 1px solid var(--border); background: #090d16; }
+    canvas#colorbarCanvas { width: 14px; height: calc(100% - 40px); border: 1px solid #475569; border-radius: 2px; }
+    .cb-text { font-size: 0.68rem; color: var(--text-dim); width: 100%; text-align: center; }
+
+    .right-charts { flex: 2; display: flex; flex-direction: column; gap: 16px; min-width: 320px; }
+    .chart-card { flex: 1; background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px; display: flex; flex-direction: column; }
+    .chart-card h4 { font-size: 0.85rem; color: var(--text-dim); margin-bottom: 8px; }
+    .chart-canvas-wrap { flex: 1; position: relative; width: 100%; }
+    canvas.chartCanvas { width: 100%; height: 100%; display: block; }
+
+    /* Crosshair overlay tooltip */
+    .tooltip {
+      position: absolute; pointer-events: none; background: rgba(15, 23, 42, 0.85); border: 1px solid var(--accent);
+      padding: 6px 10px; border-radius: 4px; font-size: 0.78rem; display: none; z-index: 10;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Sidebar Controls -->
+  <div class="sidebar">
+    <div class="header-title">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="m4.93 4.93 4.24 4.24"/><path d="m14.83 9.17 4.24-4.24"/><path d="m14.83 14.83 4.24 4.24"/><path d="m9.17 14.83-4.24 4.24"/></svg>
+      ARPL 色階分析器
+    </div>
+
+    <!-- Data Select -->
+    <div class="panel">
+      <div class="panel-title">1. 選擇光譜數據</div>
+      <label style="font-size: 0.78rem;">伺服器清單或自選本機檔案:</label>
+      <select id="fileSelect">
+        <option value="">載入中...</option>
+      </select>
+      <input type="file" id="localFileInput" accept=".txt" style="display: none;">
+      <button onclick="document.getElementById('localFileInput').click()" style="width: 100%; border-style: dashed; font-size: 0.8rem;">
+        📂 點此選擇或直接拖曳 .txt 檔案
+      </button>
+    </div>
+
+    <!-- Quick Presets -->
+    <div class="panel">
+      <div class="panel-title">2. 快速自動色階優化</div>
+      <div class="btn-group">
+        <button class="primary" onclick="autoOptimize('peak')">✨ 突出發光中心</button>
+        <button onclick="autoOptimize('wide')">🔍 暗部細節增強</button>
+      </div>
+      <div class="btn-group" style="margin-top: 4px;">
+        <button onclick="autoOptimize('robust')">🎯 去除極值雜訊</button>
+        <button onclick="resetFullRange()">全範圍重置</button>
+      </div>
+    </div>
+
+    <!-- Color Scale Adjustments -->
+    <div class="panel">
+      <div class="panel-title">3. 精細色彩微調 (Color Levels)</div>
+
+      <div>
+        <label>最低截斷 (Min / Black): <span class="val-display" id="minDisplay">0</span></label>
+        <input type="range" id="minSlider" min="0" max="1000" step="1">
+      </div>
+
+      <div>
+        <label>最高截斷 (Max / White): <span class="val-display" id="maxDisplay">1000</span></label>
+        <input type="range" id="maxSlider" min="0" max="1000" step="1">
+      </div>
+
+      <div>
+        <label>Gamma (暗部拉提): <span class="val-display" id="gammaDisplay">1.00</span></label>
+        <input type="range" id="gammaSlider" min="0.1" max="3.0" step="0.05" value="1.0">
+      </div>
+
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 4px;">
+        <label for="logScale" style="cursor: pointer;">對數色階 (Log Scale):</label>
+        <input type="checkbox" id="logScale" style="width: 18px; height: 18px; cursor: pointer;">
+      </div>
+
+      <div style="margin-top: 6px;">
+        <label style="margin-bottom: 4px;">Colormap 色盤:</label>
+        <select id="cmapSelect" style="width: 100%;">
+          <option value="turbo">Turbo (現代高對比 - 推薦)</option>
+          <option value="gray">Grayscale (黑白灰階 - 標準)</option>
+          <option value="gray_inv">Grayscale Inverted (白底黑字 - 反轉灰階)</option>
+          <option value="bone">Bone (冷調醫學/科研灰階)</option>
+          <option value="jet">Jet (經典彩虹)</option>
+          <option value="viridis">Viridis (感官均勻)</option>
+          <option value="plasma">Plasma (高亮紫橘)</option>
+          <option value="inferno">Inferno (熱感黑紅黃)</option>
+          <option value="coolwarm">CoolWarm (藍白紅)</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Export -->
+    <div class="panel">
+      <div class="panel-title">4. 圖片匯出</div>
+      <button onclick="exportImage()" class="primary">📷 匯出高解析度圖檔</button>
+    </div>
+  </div>
+
+  <!-- Main Viewport -->
+  <div class="main">
+    <div class="topbar">
+      <div id="currentFileName" style="font-weight: 600; font-size: 0.95rem;">尚未載入檔案</div>
+      <div class="info-badge">
+        <div>波長點數: <span id="infoWl">-</span></div>
+        <div>時間點數: <span id="infoTime">-</span></div>
+        <div>強度極值: <span id="infoMinMax">-</span></div>
+      </div>
+    </div>
+
+    <div class="content-viewport">
+      <!-- 2D ARPL Heatmap -->
+      <div class="heatmap-card">
+        <div style="padding: 8px 14px; font-size: 0.85rem; color: var(--text-dim); display: flex; justify-content: space-between;">
+          <span>ARPL 2D 光譜熱圖 (點擊圖面可在右側查看切片)</span>
+          <span id="hoverInfo" style="color: var(--accent);"></span>
+        </div>
+
+        <div style="flex: 1; display: flex; overflow: hidden; position: relative;">
+          <div class="canvas-container" id="canvasContainer">
+            <canvas id="heatmapCanvas"></canvas>
+            <div id="dropPrompt" style="position: absolute; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: var(--text-dim); pointer-events: none;">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              <div style="font-size: 0.95rem; font-weight: 500;">請點擊左側「📂 選擇檔案」或直接將 .txt 拖曳至此處</div>
+            </div>
+            <div id="tooltip" class="tooltip"></div>
+          </div>
+          <div class="colorbar-container">
+            <div class="cb-text" id="cbMax">Max</div>
+            <canvas id="colorbarCanvas" width="14" height="200"></canvas>
+            <div class="cb-text" id="cbMin">Min</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Cross section cuts -->
+      <div class="right-charts">
+        <div class="chart-card">
+          <h4>波長發光光譜 (特定時間切片)</h4>
+          <div class="chart-canvas-wrap">
+            <canvas id="spectrumChart" class="chartCanvas"></canvas>
+          </div>
+        </div>
+        <div class="chart-card">
+          <h4>時間衰減曲線 (TRPL 特定波長切片)</h4>
+          <div class="chart-canvas-wrap">
+            <canvas id="trplChart" class="chartCanvas"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let currentData = null;
+    let selectedWlIdx = null;
+    let selectedTimeIdx = null;
+
+    // Precomputed 256-entry Colormap Lookup Tables (Zero overhead during render)
+    const CMAP_LUTS = {};
+    function initColormaps() {
+      const cmaps = ['turbo', 'gray', 'gray_inv', 'bone', 'jet', 'viridis', 'plasma', 'inferno', 'coolwarm'];
+      cmaps.forEach(cmap => {
+        const lut = new Uint8Array(256 * 3);
+        for (let i = 0; i < 256; i++) {
+          const val = i / 255.0;
+          let r, g, b;
+          if (cmap === 'gray') {
+            const v = val * 255;
+            lut[i*3] = v; lut[i*3+1] = v; lut[i*3+2] = v;
+          } else if (cmap === 'gray_inv') {
+            const v = (1.0 - val) * 255;
+            lut[i*3] = v; lut[i*3+1] = v; lut[i*3+2] = v;
+          } else if (cmap === 'bone') {
+            // MATLAB / Matplotlib 'bone' colormap (high contrast with slight bluish tint)
+            r = (7/8) * val + (1/8) * Math.min(1, Math.max(0, 1.5 - Math.abs(val * 4 - 3)));
+            g = (7/8) * val + (1/8) * Math.min(1, Math.max(0, 1.5 - Math.abs(val * 4 - 2)));
+            b = (7/8) * val + (1/8) * Math.min(1, Math.max(0, 1.5 - Math.abs(val * 4 - 1)));
+            lut[i*3] = r * 255; lut[i*3+1] = g * 255; lut[i*3+2] = b * 255;
+          } else if (cmap === 'jet') {
+            r = Math.min(1, Math.max(0, 1.5 - Math.abs(val * 4 - 3)));
+            g = Math.min(1, Math.max(0, 1.5 - Math.abs(val * 4 - 2)));
+            b = Math.min(1, Math.max(0, 1.5 - Math.abs(val * 4 - 1)));
+            lut[i*3] = r * 255; lut[i*3+1] = g * 255; lut[i*3+2] = b * 255;
+          } else if (cmap === 'turbo') {
+            const kR = [0.13572138, 4.61539260, -42.66032258, 132.13108234, -152.94239396, 59.28637943];
+            const kG = [0.09140261, 2.19418839, 4.84296658, -14.18503327, 4.27729857, 2.82956604];
+            const kB = [0.10667330, 12.64194608, -60.58204836, 110.36275817, -89.90310912, 27.34824973];
+            function poly(v, c) { return c[0] + v*(c[1] + v*(c[2] + v*(c[3] + v*(c[4] + v*c[5])))); }
+            lut[i*3] = Math.max(0, Math.min(255, poly(val, kR) * 255));
+            lut[i*3+1] = Math.max(0, Math.min(255, poly(val, kG) * 255));
+            lut[i*3+2] = Math.max(0, Math.min(255, poly(val, kB) * 255));
+          } else if (cmap === 'plasma') {
+            lut[i*3] = Math.sin(val * Math.PI * 0.7) * 255;
+            lut[i*3+1] = Math.pow(val, 2) * 220;
+            lut[i*3+2] = (1 - val) * 200 + Math.sin(val * Math.PI) * 55;
+          } else if (cmap === 'inferno') {
+            lut[i*3] = Math.min(255, Math.pow(val, 0.7) * 270);
+            lut[i*3+1] = Math.max(0, (val - 0.3) * 1.4 * 255);
+            lut[i*3+2] = Math.sin(val * Math.PI * 0.8) * 80;
+          } else if (cmap === 'coolwarm') {
+            lut[i*3] = val * 255;
+            lut[i*3+1] = (1 - Math.abs(val - 0.5)*1.2) * 220;
+            lut[i*3+2] = (1 - val) * 255;
+          } else { // viridis
+            lut[i*3] = Math.max(0, Math.min(255, (-0.29 + 2.4 * val - 1.2 * val * val) * 255));
+            lut[i*3+1] = Math.max(0, Math.min(255, (0.01 + 1.2 * val - 0.3 * val * val) * 255));
+            lut[i*3+2] = Math.max(0, Math.min(255, (0.33 + 0.8 * val - 0.8 * val * val) * 255));
+          }
+        }
+        CMAP_LUTS[cmap] = lut;
+      });
+    }
+    initColormaps();
+
+    // Fast parser optimized for 1MB+ text files without freezing UI
+    function parseARPLText(text, fileName) {
+      const rawLines = text.split('\n');
+      const lines = [];
+      for (let i = 0; i < rawLines.length; i++) {
+        const l = rawLines[i].trim();
+        if (!l) continue;
+        const tokens = l.split(/\s+/);
+        if (tokens.length > 0 && tokens[0] !== '') lines.push(tokens);
+      }
+      if (lines.length < 2) return null;
+      
+      const first_row = lines[0].map(Number);
+      if (first_row.length === 2 && lines[1].length === 2) {
+        return {
+          type: '1d',
+          wavelengths: lines.map(r => Number(r[0])),
+          intensities: lines.map(r => Number(r[1]))
+        };
+      }
+      
+      const wavelengths = first_row;
+      const time_coords = [];
+      const intensity_matrix = [];
+      let min_val = 1e9, max_val = -1e9;
+      const sample = [];
+      const step = Math.max(1, Math.floor(lines.length / 50));
+      
+      for (let i = 1; i < lines.length; i++) {
+        const row = lines[i];
+        time_coords.push(Number(row[0]));
+        const vals = new Float32Array(row.length - 1);
+        for (let j = 1; j < row.length; j++) {
+          const v = Number(row[j]);
+          vals[j - 1] = v;
+          if (v < min_val) min_val = v;
+          if (v > max_val) max_val = v;
+        }
+        intensity_matrix.push(vals);
+        if (i % step === 0 && sample.length < 5000) {
+          for (let k = 0; k < vals.length; k += 4) {
+            sample.push(vals[k]);
+          }
+        }
+      }
+      
+      sample.sort((a, b) => a - b);
+      const n = sample.length;
+      return {
+        type: '2d',
+        wavelengths: wavelengths,
+        times: time_coords,
+        matrix: intensity_matrix,
+        stats: {
+          min: min_val,
+          max: max_val,
+          p1: sample[Math.floor(n * 0.01)] || min_val,
+          p5: sample[Math.floor(n * 0.05)] || min_val,
+          p50: sample[Math.floor(n * 0.50)] || min_val,
+          p95: sample[Math.floor(n * 0.95)] || max_val,
+          p99: sample[Math.floor(n * 0.99)] || max_val,
+          p99_9: sample[Math.floor(n * 0.999)] || max_val
+        }
+      };
+    }
+
+    // Initialize files list
+    async function loadFileList() {
+      try {
+        const res = await fetch('/api/files');
+        if (!res.ok) throw new Error('API not available');
+        const json = await res.json();
+        const select = document.getElementById('fileSelect');
+        select.innerHTML = '';
+        json.files.forEach(f => {
+          const opt = document.createElement('option');
+          opt.value = f.name;
+          opt.textContent = f.name;
+          select.appendChild(opt);
+        });
+        if (json.files.length > 0) {
+          select.value = json.files[0].name;
+          loadFile(json.files[0].name);
+        }
+      } catch (err) {
+        // Standalone offline mode: hide server dropdown or show offline hint
+        const select = document.getElementById('fileSelect');
+        select.innerHTML = '<option value="">(本機單機模式 - 請由下方選取或拖曳檔案)</option>';
+      }
+    }
+
+    // Load specific ARPL file
+    async function loadFile(fileName) {
+      document.getElementById('currentFileName').textContent = '讀取中: ' + fileName;
+      try {
+        const res = await fetch('/api/data?file=' + encodeURIComponent(fileName));
+        const data = await res.json();
+        applyLoadedData(data, fileName);
+      } catch (err) {
+        console.error("Fetch API error:", err);
+      }
+    }
+
+    function applyLoadedData(data, fileName) {
+      currentData = data;
+      document.getElementById('currentFileName').textContent = fileName;
+      const dropPrompt = document.getElementById('dropPrompt');
+      if (dropPrompt) dropPrompt.style.display = 'none';
+      
+      if (data.type === '2d') {
+        document.getElementById('infoWl').textContent = `${data.wavelengths.length} (${data.wavelengths[0].toFixed(1)} - ${data.wavelengths[data.wavelengths.length-1].toFixed(1)} nm)`;
+        document.getElementById('infoTime').textContent = `${data.times.length} (${data.times[0].toFixed(1)} - ${data.times[data.times.length-1].toFixed(1)})`;
+        document.getElementById('infoMinMax').textContent = `${data.stats.min.toFixed(0)} ~ ${data.stats.max.toFixed(0)}`;
+        
+        // Setup slider bounds
+        const minS = document.getElementById('minSlider');
+        const maxS = document.getElementById('maxSlider');
+        minS.min = data.stats.min;
+        minS.max = data.stats.max;
+        maxS.min = data.stats.min;
+        maxS.max = data.stats.max;
+        
+        // Auto default to peak preset
+        autoOptimize('peak');
+
+        selectedTimeIdx = Math.floor(data.times.length / 4);
+        selectedWlIdx = Math.floor(data.wavelengths.length / 2);
+        updateCuts();
+      }
+    }
+
+    // Local file input handler
+    document.getElementById('localFileInput').addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      readAndDisplayLocalFile(file);
+    });
+
+    function readAndDisplayLocalFile(file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const parsed = parseARPLText(event.target.result, file.name);
+        if (parsed) {
+          applyLoadedData(parsed, file.name);
+        } else {
+          alert("無法解析此檔案格式，請確認是否為 ARPL/TRPL 光譜資料。");
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    // Drag and drop onto window
+    window.addEventListener('dragover', (e) => e.preventDefault());
+    window.addEventListener('drop', (e) => {
+      e.preventDefault();
+      if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+        readAndDisplayLocalFile(e.dataTransfer.files[0]);
+      }
+    });
+
+    // Auto Optimization Presets
+    function autoOptimize(mode) {
+      if (!currentData || !currentData.stats) return;
+      const s = currentData.stats;
+      const minS = document.getElementById('minSlider');
+      const maxS = document.getElementById('maxSlider');
+      const gammaS = document.getElementById('gammaSlider');
+      const logS = document.getElementById('logScale');
+
+      if (mode === 'peak') {
+        // Cut out background baseline noise, focus on signal peak
+        minS.value = Math.max(s.min, s.p50);
+        maxS.value = s.p99_9;
+        gammaS.value = 0.85;
+        logS.checked = false;
+      } else if (mode === 'wide') {
+        // Boost dark / faint tail emission
+        minS.value = s.p5;
+        maxS.value = s.p99;
+        gammaS.value = 0.55;
+        logS.checked = false;
+      } else if (mode === 'robust') {
+        // 5% to 95% range
+        minS.value = s.p5;
+        maxS.value = s.p95;
+        gammaS.value = 1.0;
+        logS.checked = false;
+      }
+      syncDisplayValues();
+      renderHeatmap();
+    }
+
+    function resetFullRange() {
+      if (!currentData || !currentData.stats) return;
+      const s = currentData.stats;
+      document.getElementById('minSlider').value = s.min;
+      document.getElementById('maxSlider').value = s.max;
+      document.getElementById('gammaSlider').value = 1.0;
+      document.getElementById('logScale').checked = false;
+      syncDisplayValues();
+      renderHeatmap();
+    }
+
+    function syncDisplayValues() {
+      document.getElementById('minDisplay').textContent = Number(document.getElementById('minSlider').value).toFixed(0);
+      document.getElementById('maxDisplay').textContent = Number(document.getElementById('maxSlider').value).toFixed(0);
+      document.getElementById('gammaDisplay').textContent = Number(document.getElementById('gammaSlider').value).toFixed(2);
+      document.getElementById('cbMin').textContent = Number(document.getElementById('minSlider').value).toFixed(0);
+      document.getElementById('cbMax').textContent = Number(document.getElementById('maxSlider').value).toFixed(0);
+    }
+
+    // Render 2D Heatmap with LUT & requestAnimationFrame throttling
+    let renderPending = false;
+    function scheduleRender() {
+      if (renderPending) return;
+      renderPending = true;
+      requestAnimationFrame(() => {
+        renderHeatmap();
+        renderPending = false;
+      });
+    }
+
+    function renderHeatmap() {
+      if (!currentData || currentData.type !== '2d') return;
+      const canvas = document.getElementById('heatmapCanvas');
+      const matrix = currentData.matrix;
+      const nRows = matrix.length; // time
+      const nCols = matrix[0].length; // wavelength
+
+      if (canvas.width !== nCols || canvas.height !== nRows) {
+        canvas.width = nCols;
+        canvas.height = nRows;
+      }
+      const ctx = canvas.getContext('2d', { willReadFrequently: false });
+      const imgData = ctx.createImageData(nCols, nRows);
+      const data = imgData.data;
+
+      const cmin = parseFloat(document.getElementById('minSlider').value);
+      const cmax = Math.max(cmin + 0.001, parseFloat(document.getElementById('maxSlider').value));
+      const gamma = parseFloat(document.getElementById('gammaSlider').value);
+      const isLog = document.getElementById('logScale').checked;
+      const cmap = document.getElementById('cmapSelect').value;
+      const lut = CMAP_LUTS[cmap] || CMAP_LUTS['viridis'];
+
+      const invSpan = 1.0 / (cmax - cmin);
+      const invGamma = 1.0 / gamma;
+      let idx = 0;
+
+      for (let r = 0; r < nRows; r++) {
+        const row = matrix[r];
+        for (let c = 0; c < nCols; c++) {
+          let norm = (row[c] - cmin) * invSpan;
+          if (norm < 0) norm = 0;
+          else if (norm > 1) norm = 1;
+
+          if (isLog) {
+            norm = Math.log10(1 + 9 * norm);
+          }
+          if (gamma !== 1.0) {
+            norm = Math.pow(norm, invGamma);
+          }
+
+          const lutIdx = (norm * 255 | 0) * 3;
+          data[idx]     = lut[lutIdx];
+          data[idx + 1] = lut[lutIdx + 1];
+          data[idx + 2] = lut[lutIdx + 2];
+          data[idx + 3] = 255;
+          idx += 4;
+        }
+      }
+      ctx.putImageData(imgData, 0, 0);
+      renderColorbar(cmap);
+    }
+
+    function renderColorbar(cmap) {
+      const cbCanvas = document.getElementById('colorbarCanvas');
+      const ctx = cbCanvas.getContext('2d');
+      const h = cbCanvas.height;
+      const w = cbCanvas.width;
+      const imgData = ctx.createImageData(w, h);
+      const data = imgData.data;
+      const lut = CMAP_LUTS[cmap] || CMAP_LUTS['viridis'];
+
+      for (let y = 0; y < h; y++) {
+        const norm = 1.0 - (y / (h - 1));
+        const lutIdx = (norm * 255 | 0) * 3;
+        for (let x = 0; x < w; x++) {
+          const idx = (y * w + x) * 4;
+          data[idx]     = lut[lutIdx];
+          data[idx + 1] = lut[lutIdx + 1];
+          data[idx + 2] = lut[lutIdx + 2];
+          data[idx + 3] = 255;
+        }
+      }
+      ctx.putImageData(imgData, 0, 0);
+    }
+
+    // Chart cuts
+    function updateCuts() {
+      if (!currentData || currentData.type !== '2d') return;
+      drawSpectrumCut();
+      drawTrplCut();
+    }
+
+    function drawSpectrumCut() {
+      const canvas = document.getElementById('spectrumChart');
+      const ctx = canvas.getContext('2d');
+      const w = canvas.width = canvas.parentElement.clientWidth;
+      const h = canvas.height = canvas.parentElement.clientHeight;
+      ctx.clearRect(0, 0, w, h);
+
+      if (selectedTimeIdx === null) return;
+      const spectrum = currentData.matrix[selectedTimeIdx];
+      const wl = currentData.wavelengths;
+
+      let min = spectrum[0], max = spectrum[0];
+      for (let i = 1; i < spectrum.length; i++) {
+        if (spectrum[i] < min) min = spectrum[i];
+        if (spectrum[i] > max) max = spectrum[i];
+      }
+      if (min === max) max += 1;
+
+      // Draw plot
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      const step = Math.max(1, Math.floor(spectrum.length / 500));
+      for (let i = 0; i < spectrum.length; i += step) {
+        let x = (i / (spectrum.length - 1)) * (w - 40) + 30;
+        let y = h - 25 - ((spectrum[i] - min) / (max - min)) * (h - 45);
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+
+      // Axis labels
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '10px sans-serif';
+      ctx.fillText(`時間: ${currentData.times[selectedTimeIdx].toFixed(1)}`, 30, 15);
+      ctx.fillText(`${wl[0].toFixed(0)} nm`, 30, h - 8);
+      ctx.fillText(`${wl[wl.length - 1].toFixed(0)} nm`, w - 45, h - 8);
+      ctx.fillText(max.toFixed(0), 4, 25);
+      ctx.fillText(min.toFixed(0), 4, h - 25);
+    }
+
+    function drawTrplCut() {
+      const canvas = document.getElementById('trplChart');
+      const ctx = canvas.getContext('2d');
+      const w = canvas.width = canvas.parentElement.clientWidth;
+      const h = canvas.height = canvas.parentElement.clientHeight;
+      ctx.clearRect(0, 0, w, h);
+
+      if (selectedWlIdx === null) return;
+      const times = currentData.times;
+      const decay = new Float32Array(times.length);
+      let min = 1e9, max = -1e9;
+      for (let r = 0; r < times.length; r++) {
+        const v = currentData.matrix[r][selectedWlIdx];
+        decay[r] = v;
+        if (v < min) min = v;
+        if (v > max) max = v;
+      }
+      if (min === max) max += 1;
+
+      ctx.strokeStyle = '#f43f5e';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      for (let i = 0; i < decay.length; i++) {
+        let x = (i / (decay.length - 1)) * (w - 40) + 30;
+        let y = h - 25 - ((decay[i] - min) / (max - min)) * (h - 45);
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '10px sans-serif';
+      ctx.fillText(`波長: ${currentData.wavelengths[selectedWlIdx].toFixed(1)} nm`, 30, 15);
+      ctx.fillText(`${times[0].toFixed(1)}`, 30, h - 8);
+      ctx.fillText(`${times[times.length - 1].toFixed(1)}`, w - 40, h - 8);
+      ctx.fillText(max.toFixed(0), 4, 25);
+      ctx.fillText(min.toFixed(0), 4, h - 25);
+    }
+
+    // Interactive Heatmap Click & Throttled Hover
+    const heatmapCanvas = document.getElementById('heatmapCanvas');
+    const hoverInfo = document.getElementById('hoverInfo');
+    let hoverPending = false;
+
+    heatmapCanvas.addEventListener('mousemove', e => {
+      if (!currentData || currentData.type !== '2d' || hoverPending) return;
+      hoverPending = true;
+      requestAnimationFrame(() => {
+        const rect = heatmapCanvas.getBoundingClientRect();
+        const xRatio = (e.clientX - rect.left) / rect.width;
+        const yRatio = (e.clientY - rect.top) / rect.height;
+
+        const col = Math.floor(xRatio * currentData.wavelengths.length);
+        const row = Math.floor(yRatio * currentData.times.length);
+
+        if (row >= 0 && row < currentData.times.length && col >= 0 && col < currentData.wavelengths.length) {
+          const val = currentData.matrix[row][col];
+          const wl = currentData.wavelengths[col];
+          const t = currentData.times[row];
+          hoverInfo.textContent = `波長: ${wl.toFixed(1)} nm | 時間: ${t.toFixed(1)} | 強度: ${val.toFixed(0)}`;
+        }
+        hoverPending = false;
+      });
+    });
+
+    heatmapCanvas.addEventListener('click', e => {
+      if (!currentData || currentData.type !== '2d') return;
+      const rect = heatmapCanvas.getBoundingClientRect();
+      const xRatio = (e.clientX - rect.left) / rect.width;
+      const yRatio = (e.clientY - rect.top) / rect.height;
+
+      selectedWlIdx = Math.max(0, Math.min(currentData.wavelengths.length - 1, Math.floor(xRatio * currentData.wavelengths.length)));
+      selectedTimeIdx = Math.max(0, Math.min(currentData.times.length - 1, Math.floor(yRatio * currentData.times.length)));
+      updateCuts();
+    });
+
+    // Export image
+    function exportImage() {
+      const canvas = document.getElementById('heatmapCanvas');
+      const link = document.createElement('a');
+      link.download = (document.getElementById('currentFileName').textContent || 'arpl_heatmap') + '.png';
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    }
+
+    // Event Listeners with Throttled Rendering
+    ['minSlider', 'maxSlider', 'gammaSlider'].forEach(id => {
+      document.getElementById(id).addEventListener('input', () => {
+        syncDisplayValues();
+        scheduleRender();
+      });
+    });
+    document.getElementById('logScale').addEventListener('change', scheduleRender);
+    document.getElementById('cmapSelect').addEventListener('change', scheduleRender);
+    document.getElementById('fileSelect').addEventListener('change', (e) => {
+      loadFile(e.target.value);
+    });
+
+    window.addEventListener('resize', updateCuts);
+    loadFileList();
+  </script>
+</body>
+</html>
