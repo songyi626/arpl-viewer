@@ -819,59 +819,63 @@
       exportCanvas.height = rawCanvas.height + margin.top + margin.bottom;
       const ctx = exportCanvas.getContext('2d');
 
-      // Background
-      ctx.fillStyle = '#0f172a';
+      // Pure White Background for Papers & Presentations
+      ctx.fillStyle = '#ffffff';
       ctx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
 
       // Draw heatmap
       ctx.drawImage(rawCanvas, margin.left, margin.top);
 
       // Draw border
-      ctx.strokeStyle = '#64748b';
-      ctx.lineWidth = 1;
+      ctx.strokeStyle = '#000000';
+      ctx.lineWidth = 1.5;
       ctx.strokeRect(margin.left, margin.top, rawCanvas.width, rawCanvas.height);
 
       // Draw colorbar
       const cbCanvas = document.getElementById('colorbarCanvas');
       const cbX = margin.left + rawCanvas.width + 25;
       const cbY = margin.top;
-      const cbW = 16;
+      const cbW = 18;
       const cbH = rawCanvas.height;
       ctx.drawImage(cbCanvas, cbX, cbY, cbW, cbH);
+      ctx.strokeStyle = '#000000';
+      ctx.lineWidth = 1;
       ctx.strokeRect(cbX, cbY, cbW, cbH);
 
       // Colorbar labels
-      ctx.fillStyle = '#cbd5e1';
-      ctx.font = '12px sans-serif';
-      ctx.fillText(document.getElementById('cbMax').textContent, cbX + cbW + 6, cbY + 12);
-      ctx.fillText(document.getElementById('cbMin').textContent, cbX + cbW + 6, cbY + cbH);
+      ctx.fillStyle = '#000000';
+      ctx.font = '13px -apple-system, sans-serif';
+      ctx.fillText(document.getElementById('cbMax').textContent, cbX + cbW + 8, cbY + 12);
+      ctx.fillText(document.getElementById('cbMin').textContent, cbX + cbW + 8, cbY + cbH);
 
       // X-Axis Labels (Wavelength)
       const wl = currentData.wavelengths;
-      ctx.fillText(`${wl[0].toFixed(1)} nm`, margin.left, margin.top + rawCanvas.height + 20);
+      ctx.fillStyle = '#000000';
+      ctx.font = '13px -apple-system, sans-serif';
+      ctx.fillText(`${wl[0].toFixed(1)} nm`, margin.left, margin.top + rawCanvas.height + 22);
       const midXText = `${wl[Math.floor(wl.length/2)].toFixed(1)} nm`;
-      ctx.fillText(midXText, margin.left + rawCanvas.width/2 - ctx.measureText(midXText).width/2, margin.top + rawCanvas.height + 20);
+      ctx.fillText(midXText, margin.left + rawCanvas.width/2 - ctx.measureText(midXText).width/2, margin.top + rawCanvas.height + 22);
       const maxXText = `${wl[wl.length-1].toFixed(1)} nm`;
-      ctx.fillText(maxXText, margin.left + rawCanvas.width - ctx.measureText(maxXText).width, margin.top + rawCanvas.height + 20);
+      ctx.fillText(maxXText, margin.left + rawCanvas.width - ctx.measureText(maxXText).width, margin.top + rawCanvas.height + 22);
       
       const xTitle = 'Wavelength (nm)';
-      ctx.font = 'bold 14px sans-serif';
-      ctx.fillText(xTitle, margin.left + rawCanvas.width/2 - ctx.measureText(xTitle).width/2, margin.top + rawCanvas.height + 45);
+      ctx.font = 'bold 15px -apple-system, sans-serif';
+      ctx.fillText(xTitle, margin.left + rawCanvas.width/2 - ctx.measureText(xTitle).width/2, margin.top + rawCanvas.height + 48);
 
       // Y-Axis Labels (Angle)
       const { minA, maxA } = getAngleRange();
-      ctx.font = '12px sans-serif';
+      ctx.font = '13px -apple-system, sans-serif';
       const yMaxText = `${maxA > 0 ? '+' : ''}${maxA.toFixed(2)}°`;
-      ctx.fillText(yMaxText, margin.left - ctx.measureText(yMaxText).width - 8, margin.top + 10);
+      ctx.fillText(yMaxText, margin.left - ctx.measureText(yMaxText).width - 10, margin.top + 12);
       const yMidText = `${((maxA + minA) / 2).toFixed(2)}°`;
-      ctx.fillText(yMidText, margin.left - ctx.measureText(yMidText).width - 8, margin.top + rawCanvas.height/2 + 4);
+      ctx.fillText(yMidText, margin.left - ctx.measureText(yMidText).width - 10, margin.top + rawCanvas.height/2 + 5);
       const yMinText = `${minA.toFixed(2)}°`;
-      ctx.fillText(yMinText, margin.left - ctx.measureText(yMinText).width - 8, margin.top + rawCanvas.height);
+      ctx.fillText(yMinText, margin.left - ctx.measureText(yMinText).width - 10, margin.top + rawCanvas.height);
 
       ctx.save();
       ctx.translate(22, margin.top + rawCanvas.height/2);
       ctx.rotate(-Math.PI/2);
-      ctx.font = 'bold 14px sans-serif';
+      ctx.font = 'bold 15px -apple-system, sans-serif';
       const yTitle = 'Angle (deg)';
       ctx.fillText(yTitle, -ctx.measureText(yTitle).width/2, 0);
       ctx.restore();
