@@ -136,6 +136,20 @@
           <option value="coolwarm">CoolWarm (藍白紅)</option>
         </select>
       </div>
+
+      <div style="border-top: 1px dashed var(--border); padding-top: 10px; margin-top: 6px;">
+        <label style="margin-bottom: 4px; font-weight: 600; color: var(--accent);">Y軸角度刻度範圍 (° Angle):</label>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+          <div>
+            <span style="font-size: 0.72rem; color: var(--text-dim);">上限 (+)</span>
+            <input type="number" id="yMaxAngle" value="53.13" step="0.01" style="width: 100%; background: #1e293b; color: var(--text); border: 1px solid var(--border); border-radius: 4px; padding: 4px 6px; font-size: 0.85rem;">
+          </div>
+          <div>
+            <span style="font-size: 0.72rem; color: var(--text-dim);">下限 (-)</span>
+            <input type="number" id="yMinAngle" value="-53.13" step="0.01" style="width: 100%; background: #1e293b; color: var(--text); border: 1px solid var(--border); border-radius: 4px; padding: 4px 6px; font-size: 0.85rem;">
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Export -->
@@ -165,14 +179,39 @@
         </div>
 
         <div style="flex: 1; display: flex; overflow: hidden; position: relative;">
-          <div class="canvas-container" id="canvasContainer">
-            <canvas id="heatmapCanvas"></canvas>
-            <div id="dropPrompt" style="position: absolute; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: var(--text-dim); pointer-events: none;">
-              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-              <div style="font-size: 0.95rem; font-weight: 500;">請點擊左側「📂 選擇檔案」或直接將 .txt 拖曳至此處</div>
+          <div class="canvas-container" id="canvasContainer" style="padding: 15px 15px 35px 55px; position: relative;">
+            <!-- Y-Axis Label -->
+            <div style="position: absolute; left: 6px; top: 50%; transform: translateY(-50%) rotate(-90deg); font-size: 0.8rem; font-weight: 600; color: var(--accent); letter-spacing: 0.05em; pointer-events: none;">
+              角度 Angle (deg)
             </div>
-            <div id="tooltip" class="tooltip"></div>
+            <!-- Y-Axis Ticks -->
+            <div id="yAxisTicks" style="position: absolute; left: 24px; top: 15px; bottom: 35px; width: 30px; display: flex; flex-direction: column; justify-content: space-between; align-items: flex-end; font-size: 0.72rem; color: var(--text-dim); pointer-events: none;">
+              <span id="tickYMax">+53.13°</span>
+              <span id="tickYMid">0.00°</span>
+              <span id="tickYMin">-53.13°</span>
+            </div>
+
+            <!-- Heatmap Canvas Area -->
+            <div style="width: 100%; height: 100%; position: relative; display: flex; align-items: center; justify-content: center; background: #000; border: 1px solid #334155; border-radius: 4px; overflow: hidden;">
+              <canvas id="heatmapCanvas" style="width: 100%; height: 100%; object-fit: fill;"></canvas>
+              <div id="dropPrompt" style="position: absolute; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: var(--text-dim); pointer-events: none;">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                <div style="font-size: 0.95rem; font-weight: 500;">請點擊左側「📂 選擇檔案」或直接將 .txt 拖曳至此處</div>
+              </div>
+              <div id="tooltip" class="tooltip"></div>
+            </div>
+
+            <!-- X-Axis Label & Ticks -->
+            <div id="xAxisTicks" style="position: absolute; left: 55px; right: 15px; bottom: 18px; display: flex; justify-content: space-between; font-size: 0.72rem; color: var(--text-dim); pointer-events: none;">
+              <span id="tickXMin">--- nm</span>
+              <span id="tickXMid">--- nm</span>
+              <span id="tickXMax">--- nm</span>
+            </div>
+            <div style="position: absolute; left: 55px; right: 15px; bottom: 4px; text-align: center; font-size: 0.8rem; font-weight: 600; color: var(--accent); pointer-events: none;">
+              波長 Wavelength (nm)
+            </div>
           </div>
+
           <div class="colorbar-container">
             <div class="cb-text" id="cbMax">Max</div>
             <canvas id="colorbarCanvas" width="14" height="200"></canvas>
@@ -184,13 +223,13 @@
       <!-- Cross section cuts -->
       <div class="right-charts">
         <div class="chart-card">
-          <h4>波長發光光譜 (特定時間切片)</h4>
+          <h4>波長發光光譜 (特定角度切片)</h4>
           <div class="chart-canvas-wrap">
             <canvas id="spectrumChart" class="chartCanvas"></canvas>
           </div>
         </div>
         <div class="chart-card">
-          <h4>時間衰減曲線 (TRPL 特定波長切片)</h4>
+          <h4>角度發光分佈 (ARPL 特定波長角度切片)</h4>
           <div class="chart-canvas-wrap">
             <canvas id="trplChart" class="chartCanvas"></canvas>
           </div>
@@ -352,6 +391,35 @@
       }
     }
 
+    function getAngleRange() {
+      const maxA = parseFloat(document.getElementById('yMaxAngle').value) || 53.13;
+      const minA = parseFloat(document.getElementById('yMinAngle').value) || -53.13;
+      return { minA, maxA };
+    }
+
+    function rowToAngle(rowIdx, totalRows) {
+      const { minA, maxA } = getAngleRange();
+      if (totalRows <= 1) return 0;
+      // Top row is maxA (+53.13 deg), Bottom row is minA (-53.13 deg)
+      return maxA - (rowIdx / (totalRows - 1)) * (maxA - minA);
+    }
+
+    function updateAxisTicks() {
+      if (!currentData || currentData.type !== '2d') return;
+      const wl = currentData.wavelengths;
+      const { minA, maxA } = getAngleRange();
+
+      // X-Axis ticks (Wavelength)
+      document.getElementById('tickXMin').textContent = `${wl[0].toFixed(1)} nm`;
+      document.getElementById('tickXMid').textContent = `${wl[Math.floor(wl.length / 2)].toFixed(1)} nm`;
+      document.getElementById('tickXMax').textContent = `${wl[wl.length - 1].toFixed(1)} nm`;
+
+      // Y-Axis ticks (Angle)
+      document.getElementById('tickYMax').textContent = `${maxA > 0 ? '+' : ''}${maxA.toFixed(2)}°`;
+      document.getElementById('tickYMid').textContent = `${((maxA + minA) / 2).toFixed(2)}°`;
+      document.getElementById('tickYMin').textContent = `${minA.toFixed(2)}°`;
+    }
+
     // Load specific ARPL file
     async function loadFile(fileName) {
       document.getElementById('currentFileName').textContent = '讀取中: ' + fileName;
@@ -371,8 +439,9 @@
       if (dropPrompt) dropPrompt.style.display = 'none';
       
       if (data.type === '2d') {
+        const { minA, maxA } = getAngleRange();
         document.getElementById('infoWl').textContent = `${data.wavelengths.length} (${data.wavelengths[0].toFixed(1)} - ${data.wavelengths[data.wavelengths.length-1].toFixed(1)} nm)`;
-        document.getElementById('infoTime').textContent = `${data.times.length} (${data.times[0].toFixed(1)} - ${data.times[data.times.length-1].toFixed(1)})`;
+        document.getElementById('infoTime').textContent = `${data.times.length} 階 (${minA.toFixed(1)}° ~ ${maxA > 0 ? '+' : ''}${maxA.toFixed(1)}°)`;
         document.getElementById('infoMinMax').textContent = `${data.stats.min.toFixed(0)} ~ ${data.stats.max.toFixed(0)}`;
         
         // Setup slider bounds
@@ -380,13 +449,14 @@
         const maxS = document.getElementById('maxSlider');
         minS.min = data.stats.min;
         minS.max = data.stats.max;
-        maxS.min = data.stats.min;
-        maxS.max = data.stats.max;
+        minS.min = data.stats.min;
+        minS.max = data.stats.max;
         
         // Auto default to peak preset
         autoOptimize('peak');
+        updateAxisTicks();
 
-        selectedTimeIdx = Math.floor(data.times.length / 4);
+        selectedTimeIdx = Math.floor(data.times.length / 2); // default center angle (0 deg)
         selectedWlIdx = Math.floor(data.wavelengths.length / 2);
         updateCuts();
       }
@@ -487,7 +557,7 @@
       if (!currentData || currentData.type !== '2d') return;
       const canvas = document.getElementById('heatmapCanvas');
       const matrix = currentData.matrix;
-      const nRows = matrix.length; // time
+      const nRows = matrix.length; // angle
       const nCols = matrix[0].length; // wavelength
 
       if (canvas.width !== nCols || canvas.height !== nRows) {
@@ -575,6 +645,7 @@
       if (selectedTimeIdx === null) return;
       const spectrum = currentData.matrix[selectedTimeIdx];
       const wl = currentData.wavelengths;
+      const currentAngle = rowToAngle(selectedTimeIdx, currentData.matrix.length);
 
       let min = spectrum[0], max = spectrum[0];
       for (let i = 1; i < spectrum.length; i++) {
@@ -599,7 +670,7 @@
       // Axis labels
       ctx.fillStyle = '#94a3b8';
       ctx.font = '10px sans-serif';
-      ctx.fillText(`時間: ${currentData.times[selectedTimeIdx].toFixed(1)}`, 30, 15);
+      ctx.fillText(`角度: ${currentAngle > 0 ? '+' : ''}${currentAngle.toFixed(2)}°`, 30, 15);
       ctx.fillText(`${wl[0].toFixed(0)} nm`, 30, h - 8);
       ctx.fillText(`${wl[wl.length - 1].toFixed(0)} nm`, w - 45, h - 8);
       ctx.fillText(max.toFixed(0), 4, 25);
@@ -614,10 +685,10 @@
       ctx.clearRect(0, 0, w, h);
 
       if (selectedWlIdx === null) return;
-      const times = currentData.times;
-      const decay = new Float32Array(times.length);
+      const nRows = currentData.matrix.length;
+      const decay = new Float32Array(nRows);
       let min = 1e9, max = -1e9;
-      for (let r = 0; r < times.length; r++) {
+      for (let r = 0; r < nRows; r++) {
         const v = currentData.matrix[r][selectedWlIdx];
         decay[r] = v;
         if (v < min) min = v;
@@ -625,6 +696,7 @@
       }
       if (min === max) max += 1;
 
+      const { minA, maxA } = getAngleRange();
       ctx.strokeStyle = '#f43f5e';
       ctx.lineWidth = 2;
       ctx.beginPath();
@@ -639,8 +711,8 @@
       ctx.fillStyle = '#94a3b8';
       ctx.font = '10px sans-serif';
       ctx.fillText(`波長: ${currentData.wavelengths[selectedWlIdx].toFixed(1)} nm`, 30, 15);
-      ctx.fillText(`${times[0].toFixed(1)}`, 30, h - 8);
-      ctx.fillText(`${times[times.length - 1].toFixed(1)}`, w - 40, h - 8);
+      ctx.fillText(`${maxA > 0 ? '+' : ''}${maxA.toFixed(1)}°`, 30, h - 8);
+      ctx.fillText(`${minA.toFixed(1)}°`, w - 40, h - 8);
       ctx.fillText(max.toFixed(0), 4, 25);
       ctx.fillText(min.toFixed(0), 4, h - 25);
     }
@@ -659,13 +731,13 @@
         const yRatio = (e.clientY - rect.top) / rect.height;
 
         const col = Math.floor(xRatio * currentData.wavelengths.length);
-        const row = Math.floor(yRatio * currentData.times.length);
+        const row = Math.floor(yRatio * currentData.matrix.length);
 
-        if (row >= 0 && row < currentData.times.length && col >= 0 && col < currentData.wavelengths.length) {
+        if (row >= 0 && row < currentData.matrix.length && col >= 0 && col < currentData.wavelengths.length) {
           const val = currentData.matrix[row][col];
           const wl = currentData.wavelengths[col];
-          const t = currentData.times[row];
-          hoverInfo.textContent = `波長: ${wl.toFixed(1)} nm | 時間: ${t.toFixed(1)} | 強度: ${val.toFixed(0)}`;
+          const ang = rowToAngle(row, currentData.matrix.length);
+          hoverInfo.textContent = `波長: ${wl.toFixed(1)} nm | 角度: ${ang > 0 ? '+' : ''}${ang.toFixed(2)}° | 強度: ${val.toFixed(0)}`;
         }
         hoverPending = false;
       });
@@ -678,16 +750,80 @@
       const yRatio = (e.clientY - rect.top) / rect.height;
 
       selectedWlIdx = Math.max(0, Math.min(currentData.wavelengths.length - 1, Math.floor(xRatio * currentData.wavelengths.length)));
-      selectedTimeIdx = Math.max(0, Math.min(currentData.times.length - 1, Math.floor(yRatio * currentData.times.length)));
+      selectedTimeIdx = Math.max(0, Math.min(currentData.matrix.length - 1, Math.floor(yRatio * currentData.matrix.length)));
       updateCuts();
     });
 
-    // Export image
+    // Export image with high-res axes and colorbar
     function exportImage() {
-      const canvas = document.getElementById('heatmapCanvas');
+      if (!currentData || currentData.type !== '2d') return;
+      const rawCanvas = document.getElementById('heatmapCanvas');
+      const exportCanvas = document.createElement('canvas');
+      const margin = { top: 30, right: 90, bottom: 60, left: 75 };
+      exportCanvas.width = rawCanvas.width + margin.left + margin.right;
+      exportCanvas.height = rawCanvas.height + margin.top + margin.bottom;
+      const ctx = exportCanvas.getContext('2d');
+
+      // Background
+      ctx.fillStyle = '#0f172a';
+      ctx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
+
+      // Draw heatmap
+      ctx.drawImage(rawCanvas, margin.left, margin.top);
+
+      // Draw border
+      ctx.strokeStyle = '#64748b';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(margin.left, margin.top, rawCanvas.width, rawCanvas.height);
+
+      // Draw colorbar
+      const cbCanvas = document.getElementById('colorbarCanvas');
+      const cbX = margin.left + rawCanvas.width + 25;
+      const cbY = margin.top;
+      const cbW = 16;
+      const cbH = rawCanvas.height;
+      ctx.drawImage(cbCanvas, cbX, cbY, cbW, cbH);
+      ctx.strokeRect(cbX, cbY, cbW, cbH);
+
+      // Colorbar labels
+      ctx.fillStyle = '#cbd5e1';
+      ctx.font = '12px sans-serif';
+      ctx.fillText(document.getElementById('cbMax').textContent, cbX + cbW + 6, cbY + 12);
+      ctx.fillText(document.getElementById('cbMin').textContent, cbX + cbW + 6, cbY + cbH);
+
+      // X-Axis Labels (Wavelength)
+      const wl = currentData.wavelengths;
+      ctx.fillText(`${wl[0].toFixed(1)} nm`, margin.left, margin.top + rawCanvas.height + 20);
+      const midXText = `${wl[Math.floor(wl.length/2)].toFixed(1)} nm`;
+      ctx.fillText(midXText, margin.left + rawCanvas.width/2 - ctx.measureText(midXText).width/2, margin.top + rawCanvas.height + 20);
+      const maxXText = `${wl[wl.length-1].toFixed(1)} nm`;
+      ctx.fillText(maxXText, margin.left + rawCanvas.width - ctx.measureText(maxXText).width, margin.top + rawCanvas.height + 20);
+      
+      const xTitle = 'Wavelength (nm)';
+      ctx.font = 'bold 14px sans-serif';
+      ctx.fillText(xTitle, margin.left + rawCanvas.width/2 - ctx.measureText(xTitle).width/2, margin.top + rawCanvas.height + 45);
+
+      // Y-Axis Labels (Angle)
+      const { minA, maxA } = getAngleRange();
+      ctx.font = '12px sans-serif';
+      const yMaxText = `${maxA > 0 ? '+' : ''}${maxA.toFixed(2)}°`;
+      ctx.fillText(yMaxText, margin.left - ctx.measureText(yMaxText).width - 8, margin.top + 10);
+      const yMidText = `${((maxA + minA) / 2).toFixed(2)}°`;
+      ctx.fillText(yMidText, margin.left - ctx.measureText(yMidText).width - 8, margin.top + rawCanvas.height/2 + 4);
+      const yMinText = `${minA.toFixed(2)}°`;
+      ctx.fillText(yMinText, margin.left - ctx.measureText(yMinText).width - 8, margin.top + rawCanvas.height);
+
+      ctx.save();
+      ctx.translate(22, margin.top + rawCanvas.height/2);
+      ctx.rotate(-Math.PI/2);
+      ctx.font = 'bold 14px sans-serif';
+      const yTitle = 'Angle (deg)';
+      ctx.fillText(yTitle, -ctx.measureText(yTitle).width/2, 0);
+      ctx.restore();
+
       const link = document.createElement('a');
-      link.download = (document.getElementById('currentFileName').textContent || 'arpl_heatmap') + '.png';
-      link.href = canvas.toDataURL('image/png');
+      link.download = (document.getElementById('currentFileName').textContent || 'arpl_heatmap') + '_calibrated.png';
+      link.href = exportCanvas.toDataURL('image/png');
       link.click();
     }
 
